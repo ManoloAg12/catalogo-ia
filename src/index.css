@@ -1,0 +1,29 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Scrollbar Súper Sutil y Elegante */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: transparent; /* Invisible por defecto */
+  border-radius: 10px;
+  transition: background-color 0.3s ease;
+}
+/* Aparece sutilmente cuando haces hover sobre el chat */
+.custom-scrollbar:hover::-webkit-scrollbar-thumb {
+  background-color: #fca5a5; /* Un rojo muy suave para modo claro */
+}
+.dark .custom-scrollbar:hover::-webkit-scrollbar-thumb {
+  background-color: #334155; /* Gris oscuro para modo nocturno */
+}
+
+/* Estilos para el texto Markdown procesado por la IA */
+.markdown-content p { margin-bottom: 0.75rem; }
+.markdown-content p:last-child { margin-bottom: 0; }
+.markdown-content strong { font-weight: 700; color: inherit; }
+.markdown-content ul { list-style-type: disc; padding-left: 1.5rem; margin-top: 0.5rem; margin-bottom: 0.5rem; }
+.markdown-content li { margin-bottom: 0.25rem; }

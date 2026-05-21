@@ -1,0 +1,23 @@
+{
+  "institucion": "Universidad Modular Abierta (UMA)",
+  "sede": "Centro Regional de Santa Ana",
+  "directora_sede": "Mtra. Claribel del Carmen Calderón",
+  "aranceles_pregrado": {
+    "matricula": "$70.00",
+    "cuota_mensual": "$70.00"
+  },
+  "carreras_pregrado_semipresenciales": [
+    "Licenciatura en Administración de Empresas",
+    "Licenciatura en Contaduría Pública",
+    "Licenciatura en Mercadotecnia",
+    "Licenciatura en Administración Turística",
+    "Licenciatura en Informática",
+    "Técnico en Administración de Personal"
+  ],
+  "maestrias": [
+    "Maestría en Docencia Universitaria",
+    "Maestría en Finanzas Empresariales",
+    "Maestría en Psicología Clínica",
+    "Maestría en Derecho Procesal Civil y Mercantil"
+  ]
+}
