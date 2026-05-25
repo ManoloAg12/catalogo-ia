@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Sun, Moon, Search, Sparkles, Send, User, MessageCircle, Copy, Check, ArrowDown, RotateCcw } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm' // NUEVO: Importación para soportar tablas
+import remarkGfm from 'remark-gfm'
 
 const FAQ_SUGGESTIONS = [
   "¿Cuáles son las carreras disponibles?",
@@ -25,13 +25,15 @@ function App() {
   const [isLoading, setIsLoading] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
   
-  // NUEVOS ESTADOS PARA UI
+  // NUEVO: Estado para saber si nos quedamos sin límite diario
+  const [isQuotaReached, setIsQuotaReached] = useState(false)
+  
   const [copiedIndex, setCopiedIndex] = useState(null)
   const [showScrollButton, setShowScrollButton] = useState(false)
   
   const chatEndRef = useRef(null)
   const inputRef = useRef(null)
-  const chatContainerRef = useRef(null) // Referencia para detectar el scroll manual
+  const chatContainerRef = useRef(null)
 
   useEffect(() => {
     if (darkMode) document.documentElement.classList.add('dark')
@@ -45,51 +47,49 @@ function App() {
     return () => mediaQuery.removeEventListener('change', handleChange)
   }, [])
 
-  // Auto-scroll al final cuando hay nuevos mensajes (si el usuario no ha subido manualmente)
   useEffect(() => {
     if (!showScrollButton) {
       chatEndRef.current?.scrollIntoView({ behavior: "smooth" })
     }
   }, [messages, isLoading])
 
-  // Lógica para mostrar/ocultar el botón flotante de scroll
   const handleScroll = (e) => {
     const { scrollTop, scrollHeight, clientHeight } = e.target
-    // Si la distancia al fondo es mayor a 100px, mostramos el botón
     const isNotAtBottom = scrollHeight - scrollTop - clientHeight > 100
     setShowScrollButton(isNotAtBottom)
   }
 
-  // Función para bajar al final manualmente
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" })
     setShowScrollButton(false)
   }
 
-  // Función para copiar respuesta
   const handleCopy = (text, index) => {
     navigator.clipboard.writeText(text)
     setCopiedIndex(index)
-    setTimeout(() => setCopiedIndex(null), 2000) // Vuelve al ícono normal en 2s
+    setTimeout(() => setCopiedIndex(null), 2000)
   }
 
-  // Función para reiniciar el chat
   const handleResetChat = () => {
     setHasSearched(false)
     setMessages([])
     setQuery('')
+    setIsQuotaReached(false) // Permitimos probar de nuevo al refrescar
   }
 
+  // --- NUEVO: Parche definitivo para el scroll manual del textarea ---
   const handleInputChange = (e) => {
     setQuery(e.target.value)
-    e.target.style.height = 'auto'
-    e.target.style.height = `${e.target.scrollHeight}px`
+    // Fijamos una altura base estricta antes de calcular para evitar saltos en la pantalla
+    e.target.style.height = '58px'
+    const scrollHeight = e.target.scrollHeight
+    e.target.style.height = scrollHeight > 160 ? '160px' : `${scrollHeight}px`
   }
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      if (query.trim() && !isLoading) {
+      if (query.trim() && !isLoading && !isQuotaReached) {
         submitQuestion(query)
       }
     }
@@ -97,18 +97,18 @@ function App() {
 
   useEffect(() => {
     if (query === '' && inputRef.current) {
-      inputRef.current.style.height = 'auto'
+      inputRef.current.style.height = '58px'
     }
   }, [query])
 
   const submitQuestion = async (textToSearch) => {
-    if (!textToSearch.trim()) return
+    if (!textToSearch.trim() || isQuotaReached) return
 
     setQuery('')
     setShowSuggestions(false)
     setHasSearched(true)
     setIsLoading(true) 
-    setShowScrollButton(false) // Forzamos bajar al enviar nuevo mensaje
+    setShowScrollButton(false)
 
     setMessages(prev => [...prev, { role: 'user', text: textToSearch }])
 
@@ -144,17 +144,37 @@ function App() {
 
             try {
               const data = JSON.parse(dataStr)
+              
               if (data.error) {
-                if (isFirstChunk) {
-                  setIsLoading(false)
-                  setMessages(prev => [...prev, { role: 'ai', text: `Error: ${data.error}` }])
-                  isFirstChunk = false
+                // --- NUEVA LÓGICA DE PROTECCIÓN DE CUOTA ---
+                if (data.error === 'QUOTA_REACHED') {
+                  setIsQuotaReached(true)
+                  const mensajeLimite = "⚠️ **Límite Diario Alcanzado.**\n\nAl ser una IA en etapa experimental, tenemos un límite de solicitudes diarias para evitar saturación del servidor. Por favor, regresa y pruébame de nuevo mañana."
+                  
+                  if (isFirstChunk) {
+                    setIsLoading(false)
+                    setMessages(prev => [...prev, { role: 'ai', text: mensajeLimite }])
+                    isFirstChunk = false
+                  } else {
+                    setMessages(prev => {
+                      const nuevos = [...prev]
+                      nuevos[nuevos.length - 1].text = mensajeLimite
+                      return nuevos
+                    })
+                  }
                 } else {
-                  setMessages(prev => {
-                    const nuevos = [...prev]
-                    nuevos[nuevos.length - 1].text += `\n\nError: ${data.error}`
-                    return nuevos
-                  })
+                  // Errores normales
+                  if (isFirstChunk) {
+                    setIsLoading(false)
+                    setMessages(prev => [...prev, { role: 'ai', text: `Error: ${data.error}` }])
+                    isFirstChunk = false
+                  } else {
+                    setMessages(prev => {
+                      const nuevos = [...prev]
+                      nuevos[nuevos.length - 1].text += `\n\nError: ${data.error}`
+                      return nuevos
+                    })
+                  }
                 }
               } else if (data.texto) {
                 iaMensajeCompleto += data.texto
@@ -217,7 +237,6 @@ function App() {
   return (
     <div className="h-screen flex flex-col bg-white dark:bg-black text-gray-900 dark:text-gray-100 transition-colors duration-500 font-sans overflow-hidden">
       
-      {/* Header Centrado */}
       <header className="shrink-0 p-4 md:px-8 flex justify-between items-center max-w-5xl mx-auto w-full relative z-30 bg-white/80 dark:bg-black/80 backdrop-blur-sm">
         <h1 className="text-xl md:text-2xl font-bold tracking-wide flex items-center gap-2 text-red-800 dark:text-white">
           <Sparkles className="text-red-700 dark:text-white" size={24} />
@@ -257,22 +276,26 @@ function App() {
                   <Search className="absolute left-5 top-5 text-red-300 dark:text-gray-400 group-focus-within:text-red-700 dark:group-focus-within:text-white transition-colors" size={22} />
                   <textarea 
                     ref={inputRef}
-                    rows={1}
                     value={query} 
                     onChange={handleInputChange} 
                     onKeyDown={handleKeyDown}
                     onFocus={() => setShowSuggestions(true)}
                     onBlur={() => setShowSuggestions(false)}
-                    placeholder="Haz una pregunta o elige una opción..." 
-                    className="w-full py-[1.125rem] pl-14 pr-16 bg-transparent outline-none text-lg text-red-900 dark:text-white placeholder-red-300 dark:placeholder-gray-500 resize-none max-h-[160px] overflow-y-auto custom-scrollbar" 
-                    disabled={isLoading} 
+                    placeholder={isQuotaReached ? "Límite diario de pruebas alcanzado." : "Haz una pregunta o elige una opción..."}
+                    className="w-full py-[1.125rem] pl-14 pr-16 bg-transparent outline-none text-lg text-red-900 dark:text-white placeholder-red-300 dark:placeholder-gray-500 resize-none max-h-[160px] overflow-y-auto custom-scrollbar disabled:opacity-50" 
+                    disabled={isLoading || isQuotaReached} 
                   />
-                  <button type="submit" disabled={!query.trim() || isLoading} className="absolute right-3 bottom-3 p-3 bg-red-800 hover:bg-red-900 disabled:bg-red-200 dark:bg-white dark:hover:bg-gray-200 dark:disabled:bg-gray-800 text-white dark:text-black rounded-xl transition-colors">
+                  <button type="submit" disabled={!query.trim() || isLoading || isQuotaReached} className="absolute right-3 bottom-3 p-3 bg-red-800 hover:bg-red-900 disabled:bg-red-200 dark:bg-white dark:hover:bg-gray-200 dark:disabled:bg-gray-800 text-white dark:text-black rounded-xl transition-colors">
                     <Send size={18} />
                   </button>
                 </motion.form>
 
-                {showSuggestions && !query && <SuggestionsDropdown />}
+                {showSuggestions && !query && !isQuotaReached && <SuggestionsDropdown />}
+
+                {/* TEXTO DE AVISO LEGAL */}
+                <p className="mt-5 text-xs text-center text-red-800/50 dark:text-gray-500 max-w-lg mx-auto">
+                  Ateneo IA es una herramienta experimental y puede cometer errores. Su conocimiento está limitado al Catálogo Universitario 2026.
+                </p>
               </div>
             </motion.div>
         ) : (
@@ -292,7 +315,6 @@ function App() {
                       </div>
                     )}
                     
-                    {/* Contenedor del Mensaje */}
                     <div className={`group relative p-5 rounded-3xl max-w-[90%] md:max-w-[80%] shadow-sm text-[15.5px] leading-relaxed ${
                       msg.role === 'user' 
                         ? 'bg-red-800 text-white dark:bg-white dark:text-black rounded-tr-sm' 
@@ -302,11 +324,9 @@ function App() {
                       {msg.role === 'user' ? (
                         <p className="whitespace-pre-wrap">{msg.text}</p>
                       ) : (
-                        // Agregado remarkGfm para que renderice Tablas
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
                       )}
 
-                      {/* Botón de Copiar Respuesta (Aparece en Hover) */}
                       {msg.role !== 'user' && !isLoading && msg.text && (
                         <button
                           onClick={() => handleCopy(msg.text, idx)}
@@ -346,7 +366,6 @@ function App() {
                 <div ref={chatEndRef} className="h-4" />
               </div>
 
-              {/* Botón Flotante para Bajar (Solo aparece al scrollear hacia arriba) */}
               <AnimatePresence>
                 {showScrollButton && (
                   <motion.button
@@ -354,31 +373,35 @@ function App() {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.8 }}
                     onClick={scrollToBottom}
-                    className="absolute bottom-[5.5rem] right-[50%] translate-x-[50%] md:translate-x-0 md:right-8 z-30 p-2.5 bg-red-800/90 hover:bg-red-900 dark:bg-gray-800/90 dark:hover:bg-gray-700 text-white rounded-full shadow-lg backdrop-blur-sm transition-colors"
+                    className="absolute bottom-[6.5rem] right-[50%] translate-x-[50%] md:translate-x-0 md:right-8 z-30 p-2.5 bg-red-800/90 hover:bg-red-900 dark:bg-gray-800/90 dark:hover:bg-gray-700 text-white rounded-full shadow-lg backdrop-blur-sm transition-colors"
                   >
                     <ArrowDown size={20} />
                   </motion.button>
                 )}
               </AnimatePresence>
 
-              {/* Barra de Búsqueda Fija Inferior */}
-              <div className="shrink-0 relative z-20 mt-auto bg-transparent pt-2">
+              {/* Contenedor Inferior: Buscador + Aviso Legal */}
+              <div className="shrink-0 relative z-20 mt-auto bg-transparent pt-2 flex flex-col items-center">
                 <motion.form layoutId="search-bar" onSubmit={handleSearch} className="w-full relative flex items-end shadow-lg shadow-red-900/5 dark:shadow-none rounded-2xl bg-white dark:bg-gray-900 border border-red-100 dark:border-gray-800 overflow-hidden group">
                   <Search className="absolute left-5 bottom-4 text-red-300 dark:text-gray-400 group-focus-within:text-red-700 dark:group-focus-within:text-white transition-colors" size={22} />
                   <textarea 
                     ref={inputRef}
-                    rows={1}
                     value={query} 
                     onChange={handleInputChange} 
                     onKeyDown={handleKeyDown}
-                    placeholder="Escribe un mensaje para Ateneo IA..." 
-                    className="w-full py-[1.125rem] pl-14 pr-16 bg-transparent outline-none text-base text-red-900 dark:text-white placeholder-red-300 dark:placeholder-gray-500 relative z-10 resize-none max-h-[160px] overflow-y-auto custom-scrollbar" 
-                    disabled={isLoading} 
+                    placeholder={isQuotaReached ? "Límite diario de pruebas alcanzado." : "Escribe un mensaje para Ateneo IA..."}
+                    className="w-full py-[1.125rem] pl-14 pr-16 bg-transparent outline-none text-base text-red-900 dark:text-white placeholder-red-300 dark:placeholder-gray-500 relative z-10 resize-none max-h-[160px] overflow-y-auto custom-scrollbar disabled:opacity-50" 
+                    disabled={isLoading || isQuotaReached} 
                   />
-                  <button type="submit" disabled={!query.trim() || isLoading} className="absolute right-2 bottom-2 p-3 bg-red-800 hover:bg-red-900 disabled:bg-red-200 dark:bg-white dark:hover:bg-gray-200 dark:disabled:bg-gray-800 text-white dark:text-black rounded-xl transition-colors z-20">
+                  <button type="submit" disabled={!query.trim() || isLoading || isQuotaReached} className="absolute right-2 bottom-2 p-3 bg-red-800 hover:bg-red-900 disabled:bg-red-200 dark:bg-white dark:hover:bg-gray-200 dark:disabled:bg-gray-800 text-white dark:text-black rounded-xl transition-colors z-20">
                     <Send size={18} />
                   </button>
                 </motion.form>
+                
+                {/* TEXTO DE AVISO LEGAL */}
+                <p className="mt-3 text-[11px] text-center text-red-800/50 dark:text-gray-500">
+                  Ateneo IA es una herramienta experimental. Su conocimiento está limitado al Catálogo Universitario 2026.
+                </p>
               </div>
 
             </motion.div>
