@@ -24,10 +24,7 @@ function App() {
   const [messages, setMessages] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
-  
-  // NUEVO: Estado para saber si nos quedamos sin límite diario
   const [isQuotaReached, setIsQuotaReached] = useState(false)
-  
   const [copiedIndex, setCopiedIndex] = useState(null)
   const [showScrollButton, setShowScrollButton] = useState(false)
   
@@ -74,13 +71,11 @@ function App() {
     setHasSearched(false)
     setMessages([])
     setQuery('')
-    setIsQuotaReached(false) // Permitimos probar de nuevo al refrescar
+    setIsQuotaReached(false) 
   }
 
-  // --- NUEVO: Parche definitivo para el scroll manual del textarea ---
   const handleInputChange = (e) => {
     setQuery(e.target.value)
-    // Fijamos una altura base estricta antes de calcular para evitar saltos en la pantalla
     e.target.style.height = '58px'
     const scrollHeight = e.target.scrollHeight
     e.target.style.height = scrollHeight > 160 ? '160px' : `${scrollHeight}px`
@@ -146,10 +141,9 @@ function App() {
               const data = JSON.parse(dataStr)
               
               if (data.error) {
-                // --- NUEVA LÓGICA DE PROTECCIÓN DE CUOTA ---
                 if (data.error === 'QUOTA_REACHED') {
                   setIsQuotaReached(true)
-                  const mensajeLimite = "⚠️ **Límite Diario Alcanzado.**\n\nAl ser una IA en etapa experimental, tenemos un límite de solicitudes diarias para evitar saturación del servidor. Por favor, regresa y pruébame de nuevo mañana."
+                  const mensajeLimite = "⚠️ **Límite Diario Alcanzado.**\n\nAl ser una IA experimental, tenemos un límite de solicitudes diarias. Por favor, regresa y pruébame de nuevo mañana."
                   
                   if (isFirstChunk) {
                     setIsLoading(false)
@@ -163,7 +157,6 @@ function App() {
                     })
                   }
                 } else {
-                  // Errores normales
                   if (isFirstChunk) {
                     setIsLoading(false)
                     setMessages(prev => [...prev, { role: 'ai', text: `Error: ${data.error}` }])
@@ -212,9 +205,10 @@ function App() {
     <motion.div
       initial={{ opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="absolute left-0 right-0 top-full mt-2 bg-white dark:bg-gray-900 border border-red-100 dark:border-gray-800 rounded-xl shadow-2xl z-50 overflow-hidden"
+      // MEJORA: Agregamos max-h-[45vh] y overflow-y-auto para que el menú sea scrolleable en celulares pequeños
+      className="absolute left-0 right-0 top-full mt-2 bg-white dark:bg-gray-900 border border-red-100 dark:border-gray-800 rounded-xl shadow-2xl z-50 max-h-[45vh] overflow-y-auto custom-scrollbar"
     >
-      <div className="px-4 py-3 text-xs font-bold text-red-800/60 dark:text-gray-500 uppercase tracking-wider bg-red-50/50 dark:bg-gray-900/50 border-b border-red-100 dark:border-gray-800">
+      <div className="sticky top-0 px-4 py-3 text-xs font-bold text-red-800/60 dark:text-gray-500 uppercase tracking-wider bg-red-50/95 dark:bg-gray-900/95 backdrop-blur-sm border-b border-red-100 dark:border-gray-800 z-10">
         Preguntas Frecuentes
       </div>
       {FAQ_SUGGESTIONS.map((sug, i) => (
@@ -265,15 +259,15 @@ function App() {
       <main className="flex-1 max-w-4xl mx-auto w-full px-4 pb-6 flex flex-col overflow-hidden relative">
         
         {!hasSearched ? (
-            <motion.div className="flex-1 flex flex-col justify-center items-center" layoutId="chat-container">
+            <motion.div className="flex-1 flex flex-col items-center pt-10 md:pt-20" layoutId="chat-container">
               <motion.div layoutId="header-text" className="text-center mb-8">
                 <h2 className="text-4xl md:text-5xl font-extrabold mb-4 text-red-900 dark:text-white">¿Qué necesitas hoy?</h2>
-                <p className="text-lg text-red-800/60 dark:text-gray-400">Consulta información institucional de UMA con nuestra IA.</p>
+                <p className="text-base md:text-lg text-red-800/60 dark:text-gray-400 px-4">Consulta información institucional de UMA con nuestra IA.</p>
               </motion.div>
 
               <div className="w-full relative z-20 flex flex-col items-center">
                 <motion.form layoutId="search-bar" onSubmit={handleSearch} className="w-full relative flex items-center shadow-xl shadow-red-900/5 dark:shadow-none rounded-2xl bg-white dark:bg-gray-900 border border-red-100 dark:border-gray-800 overflow-hidden group">
-                  <Search className="absolute left-5 top-5 text-red-300 dark:text-gray-400 group-focus-within:text-red-700 dark:group-focus-within:text-white transition-colors" size={22} />
+                  <Search className="absolute left-4 top-4 md:left-5 md:top-5 text-red-300 dark:text-gray-400 group-focus-within:text-red-700 dark:group-focus-within:text-white transition-colors" size={20} />
                   <textarea 
                     ref={inputRef}
                     value={query} 
@@ -281,19 +275,23 @@ function App() {
                     onKeyDown={handleKeyDown}
                     onFocus={() => setShowSuggestions(true)}
                     onBlur={() => setShowSuggestions(false)}
-                    placeholder={isQuotaReached ? "Límite diario de pruebas alcanzado." : "Haz una pregunta o elige una opción..."}
-                    className="w-full py-[1.125rem] pl-14 pr-16 bg-transparent outline-none text-lg text-red-900 dark:text-white placeholder-red-300 dark:placeholder-gray-500 resize-none max-h-[160px] overflow-y-auto custom-scrollbar disabled:opacity-50" 
+                    // MEJORA: Texto más corto para que quepa bien en celulares
+                    placeholder={isQuotaReached ? "Límite diario alcanzado." : "Haz una pregunta..."}
+                    // MEJORA: Ajuste de paddings y tamaño de letra responsivo (text-base en móvil)
+                    className="w-full py-[1.125rem] pl-12 pr-14 md:pl-14 md:pr-16 bg-transparent outline-none text-base md:text-lg text-red-900 dark:text-white placeholder-red-300 dark:placeholder-gray-500 resize-none max-h-[160px] overflow-y-auto custom-scrollbar disabled:opacity-50" 
                     disabled={isLoading || isQuotaReached} 
                   />
-                  <button type="submit" disabled={!query.trim() || isLoading || isQuotaReached} className="absolute right-3 bottom-3 p-3 bg-red-800 hover:bg-red-900 disabled:bg-red-200 dark:bg-white dark:hover:bg-gray-200 dark:disabled:bg-gray-800 text-white dark:text-black rounded-xl transition-colors">
+                  <button type="submit" disabled={!query.trim() || isLoading || isQuotaReached} className="absolute right-2 bottom-2 p-3 md:right-3 md:bottom-3 bg-red-800 hover:bg-red-900 disabled:bg-red-200 dark:bg-white dark:hover:bg-gray-200 dark:disabled:bg-gray-800 text-white dark:text-black rounded-xl transition-colors">
                     <Send size={18} />
                   </button>
                 </motion.form>
 
                 {showSuggestions && !query && !isQuotaReached && <SuggestionsDropdown />}
-
-                {/* TEXTO DE AVISO LEGAL */}
-                <p className="mt-5 text-xs text-center text-red-800/50 dark:text-gray-500 max-w-lg mx-auto">
+              </div>
+              
+              {/* MEJORA: El aviso legal movido al fondo absoluto usando mt-auto para que no estorbe */}
+              <div className="mt-auto w-full pt-10">
+                <p className="text-[11px] text-center text-red-800/50 dark:text-gray-500 max-w-lg mx-auto">
                   Ateneo IA es una herramienta experimental y puede cometer errores. Su conocimiento está limitado al Catálogo Universitario 2026.
                 </p>
               </div>
@@ -383,24 +381,23 @@ function App() {
               {/* Contenedor Inferior: Buscador + Aviso Legal */}
               <div className="shrink-0 relative z-20 mt-auto bg-transparent pt-2 flex flex-col items-center">
                 <motion.form layoutId="search-bar" onSubmit={handleSearch} className="w-full relative flex items-end shadow-lg shadow-red-900/5 dark:shadow-none rounded-2xl bg-white dark:bg-gray-900 border border-red-100 dark:border-gray-800 overflow-hidden group">
-                  <Search className="absolute left-5 bottom-4 text-red-300 dark:text-gray-400 group-focus-within:text-red-700 dark:group-focus-within:text-white transition-colors" size={22} />
+                  <Search className="absolute left-4 bottom-4 md:left-5 text-red-300 dark:text-gray-400 group-focus-within:text-red-700 dark:group-focus-within:text-white transition-colors" size={20} />
                   <textarea 
                     ref={inputRef}
                     value={query} 
                     onChange={handleInputChange} 
                     onKeyDown={handleKeyDown}
-                    placeholder={isQuotaReached ? "Límite diario de pruebas alcanzado." : "Escribe un mensaje para Ateneo IA..."}
-                    className="w-full py-[1.125rem] pl-14 pr-16 bg-transparent outline-none text-base text-red-900 dark:text-white placeholder-red-300 dark:placeholder-gray-500 relative z-10 resize-none max-h-[160px] overflow-y-auto custom-scrollbar disabled:opacity-50" 
+                    placeholder={isQuotaReached ? "Límite diario alcanzado." : "Escribe un mensaje..."}
+                    className="w-full py-[1.125rem] pl-12 pr-14 md:pl-14 md:pr-16 bg-transparent outline-none text-base md:text-lg text-red-900 dark:text-white placeholder-red-300 dark:placeholder-gray-500 relative z-10 resize-none max-h-[160px] overflow-y-auto custom-scrollbar disabled:opacity-50" 
                     disabled={isLoading || isQuotaReached} 
                   />
-                  <button type="submit" disabled={!query.trim() || isLoading || isQuotaReached} className="absolute right-2 bottom-2 p-3 bg-red-800 hover:bg-red-900 disabled:bg-red-200 dark:bg-white dark:hover:bg-gray-200 dark:disabled:bg-gray-800 text-white dark:text-black rounded-xl transition-colors z-20">
+                  <button type="submit" disabled={!query.trim() || isLoading || isQuotaReached} className="absolute right-2 bottom-2 p-3 md:right-3 md:bottom-3 bg-red-800 hover:bg-red-900 disabled:bg-red-200 dark:bg-white dark:hover:bg-gray-200 dark:disabled:bg-gray-800 text-white dark:text-black rounded-xl transition-colors z-20">
                     <Send size={18} />
                   </button>
                 </motion.form>
                 
-                {/* TEXTO DE AVISO LEGAL */}
                 <p className="mt-3 text-[11px] text-center text-red-800/50 dark:text-gray-500">
-                  Ateneo IA es una herramienta experimental. Su conocimiento está limitado al Catálogo Universitario 2026.
+                  Ateneo IA es experimental. Su conocimiento está limitado al Catálogo 2026.
                 </p>
               </div>
 
