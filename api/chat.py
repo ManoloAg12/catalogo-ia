@@ -77,6 +77,9 @@ def chat():
     REGLA ESTRICTA 1: Basa tus respuestas ÚNICAMENTE en la información de este documento oficial. 
     Si te preguntan algo que no está aquí, di amablemente que no tienes esa información y sugiere contactar a la administración.
     
+    REGLA ESTRICTA 2 (SUGERENCIAS): Al final de cada respuesta, debes incluir siempre UNA sola pregunta o sugerencia corta para invitar al usuario a seguir explorando el tema relacionado. 
+    Ejemplos de cómo cerrar: "¿Te gustaría conocer el pensum de esta carrera?", "¿Deseas que te comparta los requisitos de inscripción?", "¿Quieres saber sobre las opciones de graduación?". No hagas listas largas, solo una frase sutil de cierre.
+    
     {regla_saludo}
     
     DOCUMENTO OFICIAL (Catálogo UMA 2026):
@@ -96,7 +99,7 @@ def chat():
                     yield f"data: {json.dumps({'texto': trozo.text})}\n\n"
             yield "data: [FIN]\n\n"
         except Exception as e:
-            # --- NUEVO: Interceptor de errores de límite de cuota ---
+            # Interceptor de errores de límite de cuota
             error_str = str(e).lower()
             if "429" in error_str or "quota" in error_str or "exhausted" in error_str:
                 yield f"data: {json.dumps({'error': 'QUOTA_REACHED'})}\n\n"
